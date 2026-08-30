@@ -139,8 +139,12 @@
 <div id="view-admin" style="display:none">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <span style="font-size:13px;color:var(--text-secondary)" id="record-count">0 records</span>
-    <button id="export-btn" style="font-size:13px">Export</button>
+    <div style="display:flex;gap:8px">
+      <button id="export-btn" style="font-size:13px">Export</button>
+      <button id="share-btn" style="display:none;font-size:13px;background:#25D366;color:#fff;border-color:#25D366">Share via WhatsApp</button>
+    </div>
   </div>
+  <p id="share-status" style="display:none;font-size:12px;color:var(--text-muted);margin:6px 0 0"></p>
   <div id="records-wrap" style="display:flex;flex-direction:column;gap:10px"></div>
   <p id="empty-msg" style="color:var(--text-muted);font-size:14px;display:none">No evaluations saved yet.</p>
 </div>
@@ -380,6 +384,8 @@ function loadRecords(){
   allRecords = loadStore().slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
   wrap.innerHTML='';
   document.getElementById('record-count').textContent=allRecords.length+' records';
+  document.getElementById('share-btn').style.display='none';
+  document.getElementById('share-status').style.display='none';
   if(allRecords.length===0){emptyMsg.style.display='block';return;}
   emptyMsg.style.display='none';
   allRecords.forEach(rec=>{
@@ -484,11 +490,43 @@ document.getElementById('export-btn').addEventListener('click', async ()=>{
     const a=document.createElement('a');
     a.href=url; a.download='driver_evaluations.xlsx'; a.click();
     URL.revokeObjectURL(url);
+
+    lastExportedFile=new File([blob], 'driver_evaluations.xlsx', {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    document.getElementById('share-btn').style.display='inline-block';
+    document.getElementById('share-status').style.display='none';
   } catch(e){
     alert('Could not build the Excel file: '+e.message);
   } finally {
     exportBtn.disabled=false;
     exportBtn.textContent=origText;
+  }
+});
+
+let lastExportedFile=null;
+document.getElementById('share-btn').addEventListener('click', async ()=>{
+  const statusEl=document.getElementById('share-status');
+  statusEl.style.display='none';
+  if(!lastExportedFile){
+    statusEl.textContent='Export the file first, then share it.';
+    statusEl.style.display='block';
+    return;
+  }
+  if(navigator.canShare && navigator.canShare({files:[lastExportedFile]})){
+    try{
+      await navigator.share({
+        files:[lastExportedFile],
+        title:'Driver Evaluations',
+        text:'Driver evaluations export'
+      });
+    }catch(e){
+      if(e.name!=='AbortError'){
+        statusEl.textContent='Could not open the share menu. The file was already downloaded — you can attach it manually in WhatsApp.';
+        statusEl.style.display='block';
+      }
+    }
+  } else {
+    statusEl.textContent='Direct sharing isn\'t supported on this device/browser. The file was downloaded — open WhatsApp and attach it manually from your Downloads.';
+    statusEl.style.display='block';
   }
 });
 </script>
